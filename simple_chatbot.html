@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chatbot</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #chat-area {
+            width: 400px;
+            height: 500px;
+            border: 1px solid #ccc;
+            overflow-y: scroll;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .user-msg {
+            color: blue;
+            margin-bottom: 5px;
+        }
+
+        .bot-msg {
+            color: green;
+            margin-bottom: 5px;
+        }
+
+        .sentiment {
+            font-size: 0.8em;
+            color: grey;
+            margin-bottom: 10px;
+        }
+
+        .crisis-btn {
+            background-color: red;
+            color: white;
+            padding: 10px;
+            cursor: pointer;
+            border: none;
+            margin-top: 5px;
+        }
+
+        #controls {
+            display: flex;
+            gap: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Aura Chatbot (Simple)</h2>
+    <div id="chat-area"></div>
+
+    <div id="controls">
+        <input type="text" id="user-input" placeholder="Type a message..." style="width: 300px;">
+        <button id="send-btn">Send</button>
+    </div>
+
+    <script>
+        const API_KEY = "AIzaSyAL94kBETX_b405rk4nAMCE8_dFwkWUXP8";
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
+
+        const chatArea = document.getElementById('chat-area');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        function detectSentiment(text) {
+            const lower = text.toLowerCase();
+            if (lower.includes("die") || lower.includes("kill myself") || lower.includes("suicide")) return "Critical";
+            if (lower.includes("anxious")) return "Anxious";
+            if (lower.includes("sad")) return "Sad";
+            if (lower.includes("happy")) return "Positive";
+            return "Neutral";
+        }
+
+        async function handleSend() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // Display user message
+            const uMsg = document.createElement('div');
+            uMsg.className = 'user-msg';
+            uMsg.innerText = "You: " + text;
+            chatArea.appendChild(uMsg);
+            userInput.value = "";
+
+            // Detect sentiment
+            const sentiment = detectSentiment(text);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: text }] }]
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error("HTTP Error: " + response.status);
+                }
+
+                const data = await response.json();
+                const replyText = data.candidates[0].content.parts[0].text;
+
+                // Display AI reply
+                const bMsg = document.createElement('div');
+                bMsg.className = 'bot-msg';
+                bMsg.innerText = "AI: " + replyText;
+                chatArea.appendChild(bMsg);
+
+                // Display Sentiment
+                const sLabel = document.createElement('div');
+                sLabel.className = 'sentiment';
+                sLabel.innerText = "Sentiment: " + sentiment;
+                chatArea.appendChild(sLabel);
+
+                // Handle Critical Sentiment
+                if (sentiment === "Critical") {
+                    const btn = document.createElement('button');
+                    btn.className = 'crisis-btn';
+                    btn.innerText = "Find Nearby Counselor";
+                    btn.onclick = () => window.open("https://www.google.com/maps/search/nearby+mental+health+counselor", "_blank");
+                    chatArea.appendChild(btn);
+                }
+
+                chatArea.scrollTop = chatArea.scrollHeight;
+
+            } catch (error) {
+                console.error("Chatbot Error:", error);
+                const eMsg = document.createElement('div');
+                eMsg.style.color = "red";
+                eMsg.innerText = "Error: Could not connect to API.";
+                chatArea.appendChild(eMsg);
+            }
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSend();
+        });
+    </script>
+</body>
+
+</html>
