@@ -45,8 +45,11 @@ export const analyticsService = {
 };
 
 export const chatService = {
-    sendMessage: async (message: string) => {
-        const response = await api.post('/chat/message', { message });
+    sendMessage: async (message: string, modelType: string = "gemini") => {
+        const response = await api.post('/chat/message', {
+            message,
+            model_type: modelType
+        });
         return response.data;
     },
 };

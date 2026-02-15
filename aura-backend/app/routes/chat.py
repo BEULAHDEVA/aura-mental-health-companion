@@ -10,6 +10,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 class ChatRequest(BaseModel):
     message: str
+    model_type: str = "gemini" # Default to gemini, can be 'aura'
 
 @router.post("/message")
 async def chat_message(
@@ -17,29 +18,51 @@ async def chat_message(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Use Gemini for the LLM response and analysis
-    try:
-        from ..services import gemini_service
-        gemini_data = await gemini_service.get_gemini_response(req.message)
-        
-        response_text = gemini_data.get("reply", "I'm here for you.")
-        analysis_obj = gemini_data.get("analysis", {})
-        
-        stress_score = analysis_obj.get("stress_score", 5)
-        emotion_label = analysis_obj.get("emotion_detected", "Neutral")
-        sentiment = analysis_obj.get("sentiment", "Neutral")
-        keywords = analysis_obj.get("keywords_found", [])
-        rec_action = analysis_obj.get("recommended_action", "None")
-        is_crisis = analysis_obj.get("crisis_flag", False)
-    except Exception as e:
-        print(f"Gemini Error: {e}")
-        response_text = "I'm here for you. Tell me more about what's on your mind. 🌿"
-        stress_score = 5
-        emotion_label = "Neutral"
-        sentiment = "Neutral"
-        keywords = []
-        rec_action = "None"
-        is_crisis = False
+    # Choose between local LLM or Gemini
+    if req.model_type == "aura":
+        try:
+            from ..services import local_llm_service
+            response_text = await local_llm_service.generate_response(req.message)
+            # For local model, we use simple heuristic analysis or fallback
+            stress_score = 3 
+            emotion_label = "Calm"
+            sentiment = "Neutral"
+            keywords = []
+            rec_action = "Continue reflecting"
+            is_crisis = False
+        except Exception as e:
+            print(f"Local LLM Error: {e}")
+            response_text = "Mini-Aura is still processing. Try Gemini for now."
+            stress_score = 5
+            emotion_label = "Neutral"
+            sentiment = "Neutral"
+            keywords = []
+            rec_action = "None"
+            is_crisis = False
+    else:
+        # Use Gemini for the LLM response and analysis
+        try:
+            from ..services import gemini_service
+            gemini_data = await gemini_service.get_gemini_response(req.message)
+            
+            response_text = gemini_data.get("reply", "I'm here for you.")
+            analysis_obj = gemini_data.get("analysis", {})
+            
+            stress_score = analysis_obj.get("stress_score", 5)
+            emotion_label = analysis_obj.get("emotion_detected", "Neutral")
+            sentiment = analysis_obj.get("sentiment", "Neutral")
+            keywords = analysis_obj.get("keywords_found", [])
+            rec_action = analysis_obj.get("recommended_action", "None")
+            is_crisis = analysis_obj.get("crisis_flag", False)
+        except Exception as e:
+            print(f"Gemini Error: {e}")
+            response_text = "I'm here for you. Tell me more about what's on your mind. 🌿"
+            stress_score = 5
+            emotion_label = "Neutral"
+            sentiment = "Neutral"
+            keywords = []
+            rec_action = "None"
+            is_crisis = False
 
     # Map stress score to level for UI
     stress_level = "Low"

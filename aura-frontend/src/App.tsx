@@ -6,6 +6,7 @@ import FocusMode from './pages/FocusMode';
 import RageRoom from './pages/RageRoom';
 import Emergency from './pages/Emergency';
 import FlowerGarden from './pages/FlowerGarden';
+import ChatPage from './pages/ChatPage'; // New Page
 import BreathingWidget from './components/BreathingWidget';
 import ChatBot from './components/ChatBot';
 import { Toaster } from 'sonner';
@@ -55,6 +56,7 @@ function App() {
                         <NavLink to="/journal" className={({ isActive }) => `nav-link-vibrant ${isActive ? 'nav-link-active-vibrant' : ''}`}>Journal</NavLink>
                         <NavLink to="/focus" className={({ isActive }) => `nav-link-vibrant ${isActive ? 'nav-link-active-vibrant' : ''}`}>Relax</NavLink>
                         <NavLink to="/garden" className={({ isActive }) => `nav-link-vibrant ${isActive ? 'nav-link-active-vibrant' : ''}`}>Garden</NavLink>
+                        <NavLink to="/talk" className={({ isActive }) => `nav-link-vibrant ${isActive ? 'nav-link-active-vibrant' : ''}`}>Talk</NavLink>
                         <NavLink to="/rage" className={({ isActive }) => `nav-link-vibrant ${isActive ? 'nav-link-active-vibrant' : ''}`}>Play</NavLink>
                         <NavLink to="/support" className={({ isActive }) => `nav-link-vibrant flex items-center gap-2 ${isActive ? 'nav-link-active-vibrant text-red-600 border-red-100' : 'text-red-500'}`}>
                             Support
@@ -82,6 +84,7 @@ function App() {
                         <Route path="/focus" element={<FocusMode />} />
                         <Route path="/rage" element={<RageRoom />} />
                         <Route path="/garden" element={<FlowerGarden />} />
+                        <Route path="/talk" element={<ChatPage />} />
                         <Route path="/support" element={<Emergency />} />
                     </Routes>
                 </main>
