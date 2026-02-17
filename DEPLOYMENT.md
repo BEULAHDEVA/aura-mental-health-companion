@@ -40,20 +40,25 @@ We will deploy the FastAPI backend as a **Web Service** on Render.
 
 ---
 
-## 2. Frontend Deployment (Vercel)
+---
 
-We will deploy the React frontend on Vercel, which has built-in support for Vite.
+## 2. Frontend Deployment (Netlify)
 
-1.  **Log in to [Vercel Dashboard](https://vercel.com/dashboard).**
-2.  Click **Add New...** -> **Project**.
-3.  Import your GitHub repository.
-4.  Configure the project:
-    -   **Framework Preset**: Vite
-    -   **Root Directory**: Click "Edit" and select `aura-frontend`.
+We will deploy the React frontend on Netlify, which is great for static sites and SPAs.
+
+1.  **Log in to [Netlify Dashboard](https://app.netlify.com/).**
+2.  Click **"Add new site"** -> **"Import an existing project"**.
+3.  Connect your GitHub repository.
+4.  Configure the site settings:
+    -   **Base directory**: `aura-frontend`
+    -   **Build command**: `npm install && npm run build`
+    -   **Publish directory**: `dist`
 5.  **Environment Variables**:
-    You need to tell the frontend where the backend lives.
+    Go to **Site settings** -> **Environment variables**.
     -   `VITE_API_URL`: `https://your-aura-backend-on-render.com` (Copy this URL from your Render dashboard once deployed)
-6.  Click **Deploy**.
+6.  Click **Deploy site**.
+
+*(Alternative: You can also use **Vercel** as described in the original guide.)*
 
 ---
 
