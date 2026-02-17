@@ -11,7 +11,7 @@ def get_model():
     if not GOOGLE_API_KEY or GOOGLE_API_KEY == "your_gemini_api_key_here":
         return None
     genai.configure(api_key=GOOGLE_API_KEY)
-    return genai.GenerativeModel('gemini-1.5-flash')
+    return genai.GenerativeModel('gemini-2.0-flash')
 
 # LAYER 1: Keyword Scoring
 CRITICAL_WORDS = ["die", "kill myself", "suicide", "end my life", "want to disappear", "no reason to live", "self harm"]

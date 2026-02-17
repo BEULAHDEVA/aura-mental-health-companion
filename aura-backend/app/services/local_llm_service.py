@@ -93,11 +93,11 @@ class AuraLLM(nn.Module):
         logits = self.lm_head(x)
         return logits, None
 
-    def generate(self, idx, max_new_tokens):
+    def generate(self, idx, max_new_tokens, temperature=0.8):
         for _ in range(max_new_tokens):
             idx_cond = idx[:, -block_size:]
             logits, _ = self(idx_cond)
-            logits = logits[:, -1, :]
+            logits = logits[:, -1, :] / temperature
             probs = F.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
@@ -150,8 +150,11 @@ def init_model():
         print(f"[Mini-Aura] CRITICAL ERROR during initialization: {e}")
         _model = None
 
-async def generate_response(prompt: str):
-    global _model, _tokenizer
+# Simple session-based memory
+_sessions = {}
+
+async def generate_response(prompt: str, session_id: str = "default"):
+    global _model, _tokenizer, _sessions
     
     if _model is None:
         init_model()
@@ -159,26 +162,52 @@ async def generate_response(prompt: str):
     if _model is None:
         return "I'm having a little trouble connecting to my local brain. Please ensure the model file is ready. 🌿"
 
-    input_text = f"User: {prompt}\nAura: "
+    # Maintain a small local history
+    if session_id not in _sessions:
+        _sessions[session_id] = []
+    
+    _sessions[session_id].append(f"User: {prompt}")
+    
+    # We take the last 2 exchanges for context
+    context_window = "\n".join(_sessions[session_id][-4:])
+    input_text = f"{context_window}\nAura: "
     
     try:
         encoded = _tokenizer['encode'](input_text)
+        # Ensure we don't exceed block_size
+        if len(encoded) > block_size:
+            encoded = encoded[-block_size:]
+            
         idx = torch.tensor([encoded], dtype=torch.long, device=device)
         
         with torch.no_grad():
-            generated_idx = _model.generate(idx, max_new_tokens=100)
+            generated_idx = _model.generate(idx, max_new_tokens=200, temperature=0.7) # Slightly more focused
         
-        result = _tokenizer['decode'](generated_idx[0].tolist())
+        full_text = _tokenizer['decode'](generated_idx[0].tolist())
         
-        if "Aura:" in result:
-            response = result.split("Aura:")[-1].strip()
-            response = response.split("User:")[0].strip()
-            return response if response else "I am listening."
+        # Extract the NEW response part only
+        new_part = full_text[len(input_text):].strip()
         
-        return result
+        # Stop at common delimiters
+        for delimiter in ["User:", "\n\n", "Aura:"]:
+            if delimiter in new_part:
+                new_part = new_part.split(delimiter)[0].strip()
+        
+        response = new_part.strip()
+        
+        if not response:
+            response = "I hear you. Tell me more."
+            
+        _sessions[session_id].append(f"Aura: {response}")
+        
+        # Keep history manageable
+        if len(_sessions[session_id]) > 10:
+            _sessions[session_id] = _sessions[session_id][-10:]
+            
+        return response
     except Exception as e:
         print(f"[Mini-Aura] Generation Error: {e}")
-        return "My thoughts are a bit tangled right now. Could you tell me more?"
+        return "My thoughts are a bit tangled right now. Could you tell me more about that?"
 
 # Pre-warm the model
 init_model()

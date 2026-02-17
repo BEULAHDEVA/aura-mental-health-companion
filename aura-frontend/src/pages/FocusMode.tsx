@@ -7,7 +7,7 @@ export default function FocusMode() {
     const [isActive, setIsActive] = useState(false);
     const [mode, setMode] = useState<'Focus' | 'Break'>('Focus');
     const [activeAmbience, setActiveAmbience] = useState<string | null>(null);
-    const [volume, setVolume] = useState(0.3);
+    const [volume, setVolume] = useState(0.5);
 
     const ambienceAudio = useRef<HTMLAudioElement | null>(null);
     const chimeAudio = useRef<HTMLAudioElement | null>(null);
@@ -16,6 +16,12 @@ export default function FocusMode() {
         // High quality chime sound for completion
         chimeAudio.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3');
         chimeAudio.current.volume = 0.5;
+
+        // Persist timer state
+        const savedTime = localStorage.getItem('aura_focus_timer');
+        const savedMode = localStorage.getItem('aura_focus_mode');
+        if (savedTime) setTimeLeft(parseInt(savedTime));
+        if (savedMode) setMode(savedMode as any);
 
         return () => {
             if (ambienceAudio.current) {
@@ -28,24 +34,38 @@ export default function FocusMode() {
     useEffect(() => {
         let interval: any = null;
         if (isActive && timeLeft > 0) {
+            const endTimestamp = Date.now() + timeLeft * 1000;
             interval = setInterval(() => {
-                setTimeLeft(prev => prev - 1);
+                const remaining = Math.round((endTimestamp - Date.now()) / 1000);
+                if (remaining <= 0) {
+                    setTimeLeft(0);
+                    localStorage.setItem('aura_focus_timer', '0');
+                } else {
+                    setTimeLeft(remaining);
+                    localStorage.setItem('aura_focus_timer', remaining.toString());
+                }
             }, 1000);
         } else if (timeLeft === 0 && isActive) {
             clearInterval(interval);
             setIsActive(false);
             if (chimeAudio.current) chimeAudio.current.play().catch(() => { });
+            alert(`${mode === 'Focus' ? 'Work Session' : 'Rest Break'} is over!`);
 
             if (mode === 'Focus') {
                 setMode('Break');
                 setTimeLeft(5 * 60);
+                localStorage.setItem('aura_focus_mode', 'Break');
+                localStorage.setItem('aura_focus_timer', (5 * 60).toString());
             } else {
                 setMode('Focus');
                 setTimeLeft(25 * 60);
+                localStorage.setItem('aura_focus_mode', 'Focus');
+                localStorage.setItem('aura_focus_timer', (25 * 60).toString());
             }
         }
         return () => clearInterval(interval);
-    }, [isActive, timeLeft, mode]);
+    }, [isActive, (timeLeft === 0), mode]);
+
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -58,27 +78,91 @@ export default function FocusMode() {
         setIsActive(false);
         setMode('Focus');
         setTimeLeft(25 * 60);
+        localStorage.setItem('aura_focus_mode', 'Focus');
+        localStorage.setItem('aura_focus_timer', (25 * 60).toString());
     };
 
-    const toggleAmbience = (type: string, url: string) => {
-        if (activeAmbience === type) {
-            if (ambienceAudio.current) ambienceAudio.current.pause();
-            setActiveAmbience(null);
-        } else {
-            if (ambienceAudio.current) ambienceAudio.current.pause();
-            ambienceAudio.current = new Audio(url);
-            ambienceAudio.current.loop = true;
-            ambienceAudio.current.volume = volume;
-            ambienceAudio.current.play().catch(() => { });
-            setActiveAmbience(type);
-        }
-    };
+    const audioContext = useRef<AudioContext | null>(null);
+    const noiseNode = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
+
+    const gainNodeRef = useRef<GainNode | null>(null);
 
     useEffect(() => {
         if (ambienceAudio.current) {
             ambienceAudio.current.volume = volume;
         }
+        if (gainNodeRef.current) {
+            gainNodeRef.current.gain.value = volume * 0.5;
+        }
     }, [volume]);
+
+    const toggleAmbience = (type: string, url: string) => {
+        if (activeAmbience === type) {
+            if (ambienceAudio.current) {
+                ambienceAudio.current.pause();
+                ambienceAudio.current = null;
+            }
+            if (noiseNode.current) {
+                noiseNode.current.disconnect();
+                noiseNode.current = null;
+                gainNodeRef.current = null;
+            }
+            setActiveAmbience(null);
+            return;
+        }
+
+        // Stop current
+        if (ambienceAudio.current) { ambienceAudio.current.pause(); ambienceAudio.current = null; }
+        if (noiseNode.current) { noiseNode.current.disconnect(); noiseNode.current = null; gainNodeRef.current = null; }
+
+        if (type === 'rain' || type === 'river') {
+            // Synthesize sound for 100% reliability and no animal noises
+            if (!audioContext.current) audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const ctx = audioContext.current;
+            const bufferSize = 4096;
+            const node = ctx.createScriptProcessor(bufferSize, 1, 1);
+            let lastOut = 0.0;
+
+            node.onaudioprocess = (e) => {
+                const output = e.outputBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    const white = Math.random() * 2 - 1;
+                    if (type === 'rain') {
+                        // Pink-ish noise filter
+                        output[i] = (lastOut + (0.02 * white)) / 1.02;
+                        lastOut = output[i];
+                        output[i] *= 3.5;
+                    } else {
+                        // Brown-ish noise filter (deeper, for river)
+                        output[i] = (lastOut + (0.01 * white)) / 1.01;
+                        lastOut = output[i];
+                        output[i] *= 4.5;
+                    }
+                }
+            };
+
+            const gainNode = ctx.createGain();
+            gainNode.gain.value = volume * 0.5;
+            node.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            noiseNode.current = node;
+            gainNodeRef.current = gainNode;
+            setActiveAmbience(type);
+        } else {
+            // Piano music
+            const audio = new Audio();
+            audio.src = url;
+            audio.loop = true;
+            audio.volume = volume;
+            audio.crossOrigin = "anonymous";
+            audio.play().then(() => {
+                ambienceAudio.current = audio;
+                setActiveAmbience(type);
+            }).catch(() => {
+                alert("Please click anywhere on the page first to enable music playback! 🎹");
+            });
+        }
+    };
 
     const totalTime = mode === 'Focus' ? 25 * 60 : 5 * 60;
     const progress = (timeLeft / totalTime) * 100;
@@ -110,10 +194,10 @@ export default function FocusMode() {
                             <circle cx="160" cy="160" r={radius} stroke="#f0fdf4" strokeWidth="12" fill="transparent" />
                             <motion.circle
                                 cx="160" cy="160" r={radius}
-                                stroke={mode === 'Focus' ? '#10b981' : '#f472b6'}
+                                stroke={mode === 'Break' ? '#f472b6' : timeLeft < 300 ? '#ef4444' : '#10b981'}
                                 strokeWidth="16" fill="transparent"
                                 strokeDasharray={circumference}
-                                animate={{ strokeDashoffset: offset }}
+                                strokeDashoffset={offset}
                                 transition={{ duration: 1, ease: "linear" }}
                                 strokeLinecap="round"
                             />
@@ -127,7 +211,7 @@ export default function FocusMode() {
                     <div className="flex gap-8 w-full">
                         <button
                             onClick={toggleTimer}
-                            className="flex-1 py-8 rounded-[30px] bg-emerald-600 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-4 shadow-2xl hover:scale-105 active:scale-95 transition-all"
+                            className={`flex-1 py-8 rounded-[30px] font-black uppercase tracking-widest text-xs flex items-center justify-center gap-4 shadow-2xl hover:scale-105 active:scale-95 transition-all ${isActive ? 'bg-red-500 text-white' : 'bg-emerald-600 text-white'}`}
                         >
                             {isActive ? <Pause size={24} /> : <Play size={24} />}
                             {isActive ? 'Pause' : 'Start'}
@@ -155,13 +239,18 @@ export default function FocusMode() {
                         <div className="grid grid-cols-2 gap-4">
                             <SoundBtn
                                 active={activeAmbience === 'rain'}
-                                onClick={() => toggleAmbience('rain', 'https://assets.mixkit.co/active_storage/sfx/2436/2436-preview.mp3')}
-                                label="Soft Rain"
+                                onClick={() => toggleAmbience('rain', 'https://raw.githubusercontent.com/bradtraversy/ambient-sound-mixer/main/sounds/rain.mp3')}
+                                label="Gentle Rain"
                             />
                             <SoundBtn
                                 active={activeAmbience === 'river'}
-                                onClick={() => toggleAmbience('river', 'https://assets.mixkit.co/active_storage/sfx/2418/2418-preview.mp3')}
+                                onClick={() => toggleAmbience('river', 'https://www.soundjay.com/nature/river-1.mp3')}
                                 label="Gentle River"
+                            />
+                            <SoundBtn
+                                active={activeAmbience === 'music'}
+                                onClick={() => toggleAmbience('music', 'https://assets.mixkit.co/music/preview/mixkit-beautiful-dream-493.mp3')}
+                                label="Chill Piano"
                             />
                         </div>
 

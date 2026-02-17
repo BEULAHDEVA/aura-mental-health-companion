@@ -1,0 +1,10 @@
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+aura-backend/.env
+aura-backend/aura.db
+.DS_Store
+dist/
+build/
+*.log

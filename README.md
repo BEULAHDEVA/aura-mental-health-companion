@@ -10,6 +10,7 @@ Aura is a production-ready, privacy-first AI journaling and mental wellness assi
 - **Focus Mode**: Spotify integration and study technique suggestions.
 - **Gamification**: XP points and streaks for consistent self-care.
 - **Rage Room**: Interactive glass-breaking mini-game for stress relief.
+- **Mini-Aura LLM**: A custom-trained local Transformer model for private conversation.
 
 ## Tech Stack
 - **Frontend**: React, TypeScript, Tailwind CSS, Framer Motion, Recharts.

@@ -54,6 +54,11 @@ def estimate_loss():
 # 4. Initialize Model
 model = AuraLLM(vocab_size)
 m = model.to(device)
+
+if os.path.exists('aura_mental_health_model.pth'):
+    print("Loading existing weights and resuming training...")
+    model.load_state_dict(torch.load('aura_mental_health_model.pth', map_location=device))
+
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
 print(f"Starting training on {device}...")
@@ -63,6 +68,8 @@ for iter in range(max_iters):
     if iter % eval_interval == 0:
         losses = estimate_loss()
         print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+        torch.save(model.state_dict(), 'aura_mental_health_model.pth')
+        print(f"Checkout saved at step {iter}")
 
     xb, yb = get_batch('train')
     logits, loss = model(xb, yb)

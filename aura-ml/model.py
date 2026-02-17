@@ -6,10 +6,10 @@ from torch.nn import functional as F
 batch_size = 32
 block_size = 64 # Context window
 max_iters = 5000
-eval_interval = 500
+eval_interval = 100
 learning_rate = 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-eval_iters = 50
+eval_iters = 20
 n_embd = 128 
 n_head = 4
 n_layer = 4
@@ -107,11 +107,11 @@ class AuraLLM(nn.Module):
 
         return logits, loss
 
-    def generate(self, idx, max_new_tokens):
+    def generate(self, idx, max_new_tokens, temperature=1.0):
         for _ in range(max_new_tokens):
             idx_cond = idx[:, -block_size:]
             logits, loss = self(idx_cond)
-            logits = logits[:, -1, :] # focus only on last time step
+            logits = logits[:, -1, :] / temperature # Scale logits by temperature
             probs = F.softmax(logits, dim=-1) # (B, C)
             idx_next = torch.multinomial(probs, num_samples=1) # (B, 1)
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)

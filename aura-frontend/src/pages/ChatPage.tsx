@@ -18,7 +18,7 @@ interface Message {
 }
 
 export default function ChatPage() {
-    const [modelType, setModelType] = useState<'gemini' | 'aura'>('gemini');
+    const [modelType, setModelType] = useState<'gemini' | 'aura' | 'groq'>('gemini');
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
@@ -116,7 +116,13 @@ export default function ChatPage() {
                         onClick={() => setModelType('gemini')}
                         className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[2rem] text-[11px] font-black uppercase tracking-widest transition-all ${modelType === 'gemini' ? 'bg-emerald-600 text-white shadow-lg' : 'text-emerald-900/40 hover:text-emerald-900'}`}
                     >
-                        <Sparkles size={18} /> Cloud AI
+                        <Sparkles size={18} /> Gemini 2.0
+                    </button>
+                    <button
+                        onClick={() => setModelType('groq')}
+                        className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[2rem] text-[11px] font-black uppercase tracking-widest transition-all ${modelType === 'groq' ? 'bg-indigo-600 text-white shadow-lg' : 'text-emerald-900/40 hover:text-emerald-900'}`}
+                    >
+                        <Zap size={18} /> Groq (Fast)
                     </button>
                     <button
                         onClick={() => setModelType('aura')}
@@ -135,7 +141,7 @@ export default function ChatPage() {
                             <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                                 <div className="flex items-center gap-3 mb-3">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-emerald-900/30">
-                                        {msg.sender === 'user' ? 'You' : `Aura Assistant ${msg.model === 'aura' ? '(Local)' : '(Cloud)'}`}
+                                        {msg.sender === 'user' ? 'You' : `Aura Assistant (${msg.model === 'aura' ? 'Local' : msg.model === 'groq' ? 'Groq' : 'Gemini 2.0'})`}
                                     </span>
                                 </div>
                                 <motion.div

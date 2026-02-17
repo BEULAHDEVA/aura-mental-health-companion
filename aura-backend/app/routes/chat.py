@@ -10,7 +10,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 class ChatRequest(BaseModel):
     message: str
-    model_type: str = "gemini" # Default to gemini, can be 'aura'
+    model_type: str = "gemini" # Default to gemini, can be 'aura' or 'groq'
 
 @router.post("/message")
 async def chat_message(
@@ -18,11 +18,11 @@ async def chat_message(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Choose between local LLM or Gemini
+    # Choose between local LLM, Gemini or Grok
     if req.model_type == "aura":
         try:
             from ..services import local_llm_service
-            response_text = await local_llm_service.generate_response(req.message)
+            response_text = await local_llm_service.generate_response(req.message, session_id=str(current_user.id))
             # For local model, we use simple heuristic analysis or fallback
             stress_score = 3 
             emotion_label = "Calm"
@@ -33,6 +33,29 @@ async def chat_message(
         except Exception as e:
             print(f"Local LLM Error: {e}")
             response_text = "Mini-Aura is still processing. Try Gemini for now."
+            stress_score = 5
+            emotion_label = "Neutral"
+            sentiment = "Neutral"
+            keywords = []
+            rec_action = "None"
+            is_crisis = False
+    elif req.model_type == "groq":
+        try:
+            from ..services import groq_service
+            groq_data = await groq_service.get_groq_response(req.message)
+            
+            response_text = groq_data.get("reply", "I'm here for you.")
+            analysis_obj = groq_data.get("analysis", {})
+            
+            stress_score = analysis_obj.get("stress_score", 5)
+            emotion_label = analysis_obj.get("emotion_detected", "Neutral")
+            sentiment = analysis_obj.get("sentiment", "Neutral")
+            keywords = analysis_obj.get("keywords_found", [])
+            rec_action = analysis_obj.get("recommended_action", "None")
+            is_crisis = analysis_obj.get("crisis_flag", False)
+        except Exception as e:
+            print(f"Groq Error: {e}")
+            response_text = "I'm listening closely, though I'm drifting through a quiet forest right now. I'm always here for you. 🌿"
             stress_score = 5
             emotion_label = "Neutral"
             sentiment = "Neutral"
@@ -65,6 +88,11 @@ async def chat_message(
             is_crisis = False
 
     # Map stress score to level for UI
+    try:
+        stress_score = float(stress_score)
+    except:
+        stress_score = 5.0
+
     stress_level = "Low"
     if stress_score >= 10: stress_level = "Critical"
     elif stress_score >= 7: stress_level = "High"
@@ -80,24 +108,31 @@ async def chat_message(
         "crisis_flag": is_crisis or stress_score >= 10
     }
 
-
-    # Persist to DB
-    db_entry = models.JournalEntry(
-        encrypted_content=f"[Chat Log]: {req.message}",
-        sentiment_score=1.0 if sentiment == "Positive" else -1.0 if sentiment == "Negative" else 0.0,
-        emotion_label=emotion_label,
-        stress_score=stress_score,
-        stress_level=stress_level,
-        user_id=current_user.id
-    )
-    db.add(db_entry)
-    
-    # Update XP for chatting
-    stats = db.query(models.UserStats).filter(models.UserStats.user_id == current_user.id).first()
-    if stats:
-        stats.xp_points += 5
-    
-    db.commit()
+    try:
+        # Persist to DB
+        db_entry = models.JournalEntry(
+            encrypted_content=f"[Chat Log]: {req.message}",
+            sentiment_score=1.0 if sentiment == "Positive" else -1.0 if sentiment == "Negative" else 0.0,
+            emotion_label=emotion_label,
+            stress_score=stress_score,
+            stress_level=stress_level,
+            user_id=current_user.id
+        )
+        db.add(db_entry)
+        
+        # Update XP for chatting
+        stats = db.query(models.UserStats).filter(models.UserStats.user_id == current_user.id).first()
+        if stats:
+            stats.xp_points += 5
+        
+        db.commit()
+    except Exception as e:
+        print(f"Database Error (Non-fatal): {e}")
+        # We don't want to crash the request if DB fails, as the user still wants the response
+        try:
+            db.rollback()
+        except:
+            pass
 
     return {
         "reply": response_text,
